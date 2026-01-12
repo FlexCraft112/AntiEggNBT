@@ -1,0 +1,5 @@
+name: AntiEggNBT
+version: 1.0
+main: me.antiegghnbt.AntiEggNBT
+api-version: 1.20
+description: Blocks NBT spawn eggs (big slimes)
