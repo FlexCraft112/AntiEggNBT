@@ -20,23 +20,19 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onUseEgg(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_AIR &&
-            event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getAction() != Action.RIGHT_CLICK_AIR
+                && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
 
         ItemStack item = event.getItem();
         if (item == null) return;
 
+        // Только spawn eggs
         if (!item.getType().name().endsWith("_SPAWN_EGG")) return;
 
         ItemMeta meta = item.getItemMeta();
 
-        // ❌ Любой spawn egg с метой (NBT / кастом)
-        if (meta != null && (
-                meta.hasCustomModelData()
-                || meta.hasDisplayName()
-                || meta.hasLore()
-        )) {
-
+        // ❌ ЛЮБАЯ мета = ЗАПРЕТ (NBT, EntityTag, Size, что угодно)
+        if (meta != null) {
             event.setCancelled(true);
 
             Player p = event.getPlayer();
