@@ -1,14 +1,13 @@
 package me.antiegghnbt;
 
 import org.bukkit.Bukkit;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.MagmaCube;
+import org.bukkit.entity.Slime;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.entity.Player;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
@@ -19,28 +18,29 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onUseEgg(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_AIR
-                && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+    public void onCreatureSpawn(CreatureSpawnEvent event) {
 
-        ItemStack item = event.getItem();
-        if (item == null) return;
+        // Нас интересуют ТОЛЬКО яйца
+        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)
+            return;
 
-        // Только spawn eggs
-        if (!item.getType().name().endsWith("_SPAWN_EGG")) return;
+        // SLIME
+        if (event.getEntityType() == EntityType.SLIME) {
+            Slime slime = (Slime) event.getEntity();
 
-        ItemMeta meta = item.getItemMeta();
+            if (slime.getSize() != 1) {
+                slime.setSize(1);
+            }
+            return;
+        }
 
-        // ❌ ЛЮБАЯ мета = ЗАПРЕТ (NBT, EntityTag, Size, что угодно)
-        if (meta != null) {
-            event.setCancelled(true);
+        // MAGMA CUBE
+        if (event.getEntityType() == EntityType.MAGMA_CUBE) {
+            MagmaCube magma = (MagmaCube) event.getEntity();
 
-            Player p = event.getPlayer();
-            p.sendMessage("§cЭтот spawn egg запрещён.");
-
-            getLogger().warning(
-                    "Blocked NBT spawn egg from " + p.getName()
-            );
+            if (magma.getSize() != 1) {
+                magma.setSize(1);
+            }
         }
     }
 }
