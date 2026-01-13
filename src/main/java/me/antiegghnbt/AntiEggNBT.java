@@ -1,11 +1,13 @@
 package me.antiegghnbt;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.entity.*;
+import org.bukkit.Material;
+import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
@@ -13,52 +15,46 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (hard vanilla reset)");
+        getLogger().info("AntiEggNBT enabled (FULL VANILLA RESET)");
     }
 
     @EventHandler
-    public void onCreatureSpawn(CreatureSpawnEvent event) {
+    public void onEggUse(PlayerInteractEvent event) {
 
-        // Работаем ТОЛЬКО с яйцами
-        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)
+        if (!event.hasItem())
             return;
 
-        Entity entity = event.getEntity();
-        Location loc = entity.getLocation();
-
-        // === SLIME / MAGMA ===
-        if (entity instanceof Slime slime) {
-            if (slime.getSize() > 1) {
-                event.setCancelled(true);
-
-                Slime clean = (Slime) loc.getWorld().spawnEntity(loc, entity.getType());
-                clean.setSize(1);
-
-                log(entity, "Slime size reset");
-            }
+        ItemStack item = event.getItem();
+        if (item == null)
             return;
-        }
 
-        // === GIANT ZOMBIE ===
-        if (entity.getType() == EntityType.GIANT) {
-            event.setCancelled(true);
-            loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
-            log(entity, "Giant replaced with Zombie");
+        if (!item.getType().name().endsWith("_SPAWN_EGG"))
             return;
-        }
 
-        // === SAFETY: если тип не совпадает с яйцом ===
-        // (на случай подмены EntityTag.id)
-        EntityType safeType = entity.getType();
-        if (!safeType.isAlive()) {
-            event.setCancelled(true);
-            log(entity, "Illegal entity blocked");
-        }
-    }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null)
+            return;
 
-    private void log(Entity e, String reason) {
+        // ❗ ЛЮБОЙ кастом = подозрительно
+        boolean dirty =
+                meta.hasLore()
+             || meta.hasDisplayName()
+             || meta.hasCustomModelData()
+             || meta.getPersistentDataContainer().getKeys().size() > 0;
+
+        if (!dirty)
+            return;
+
+        // ===== RESET TO PURE VANILLA =====
+        Material cleanEgg = item.getType();
+        ItemStack clean = new ItemStack(cleanEgg, item.getAmount());
+
+        event.getPlayer().getInventory()
+                .setItem(event.getHand(), clean);
+
         getLogger().warning(
-                reason + " | Player egg spawn blocked: " + e.getType()
+                "SpawnEgg NBT wiped: " + cleanEgg.name()
+                + " by " + event.getPlayer().getName()
         );
     }
 }
