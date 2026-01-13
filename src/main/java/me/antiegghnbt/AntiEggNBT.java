@@ -11,7 +11,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.CreatureSpawnEvent;
-import org.bukkit.event.entity.EntitySpawnEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -21,11 +20,11 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (realistic full protection)");
+        getLogger().info("AntiEggNBT enabled (stable Bukkit version)");
     }
 
     /* =========================================================
-       1️⃣ SPAWN EGG → ТОЛЬКО VANILLA МОБЫ
+       1️⃣ ЯЙЦА — ТОЛЬКО ВАНИЛЬ
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggSpawn(CreatureSpawnEvent event) {
@@ -37,12 +36,12 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         Location loc = entity.getLocation();
         EntityType type = entity.getType();
 
-        event.setCancelled(true); // ❗ ВСЕГДА отменяем
+        event.setCancelled(true); // ❗ ВСЕГДА
 
         // SLIME / MAGMA
         if (entity instanceof Slime) {
-            Slime clean = (Slime) loc.getWorld().spawnEntity(loc, type);
-            clean.setSize(1);
+            Slime slime = (Slime) loc.getWorld().spawnEntity(loc, type);
+            slime.setSize(1);
             return;
         }
 
@@ -52,7 +51,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             return;
         }
 
-        // Если это НЕ живое существо — не спавним вообще
+        // НЕ живые — не спавним
         if (!type.isAlive())
             return;
 
@@ -61,7 +60,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     }
 
     /* =========================================================
-       2️⃣ СПАВНЕР — ТОЛЬКО ЧИСТЫЙ ТИП
+       2️⃣ СПАВНЕРЫ — ТОЛЬКО ЧИСТЫЙ ТИП
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onSpawnerUse(PlayerInteractEvent event) {
@@ -89,26 +88,20 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     }
 
     /* =========================================================
-       3️⃣ НЕ-МОБЫ — ЖЁСТКИЙ БЛОК
+       3️⃣ УДАЛЯЕМ НЕ-МОБОВ ПОСЛЕ СПАВНА
        ========================================================= */
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onAnyEntitySpawn(EntitySpawnEvent event) {
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCreatureSpawnMonitor(CreatureSpawnEvent event) {
 
         EntityType type = event.getEntityType();
 
-        switch (type) {
-            case ARMOR_STAND:
-            case MINECART:
-            case CHEST_MINECART:
-            case FURNACE_MINECART:
-            case TNT_MINECART:
-            case HOPPER_MINECART:
-            case COMMAND_BLOCK_MINECART:
-            case FALLING_BLOCK:
-                event.getEntity().remove(); // ❗ НЕ cancel — сразу удаляем
-                break;
-            default:
-                break;
+        if (type == EntityType.ARMOR_STAND
+                || type.name().contains("MINECART")
+                || type == EntityType.FALLING_BLOCK) {
+
+            Bukkit.getScheduler().runTask(this, () -> {
+                event.getEntity().remove();
+            });
         }
     }
 
