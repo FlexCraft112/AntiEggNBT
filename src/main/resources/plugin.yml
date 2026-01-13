@@ -3,4 +3,5 @@ version: 1.0
 main: me.antiegghnbt.AntiEggNBT
 api-version: 1.20
 author: FlexCraft
-depend: [WorldGuard]
+depend:
+  - WorldGuard
