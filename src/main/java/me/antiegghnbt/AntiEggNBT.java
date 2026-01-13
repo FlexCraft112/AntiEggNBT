@@ -6,7 +6,6 @@ import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
@@ -27,12 +26,41 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT ENABLED (hard NBT reset)");
+        getServer().getPluginManager().registerEvents(this, this);
+        getLogger().info("AntiEggNBT enabled");
     }
 
     /* =========================================================
-       1) СПАВН ИЗ ЯИЦ — ТОЛЬКО ВАНИЛЛА
+       1️⃣ ЗАПРЕТ ИСПОЛЬЗОВАНИЯ ЯИЦ (РЕГИОНЫ)
+       ========================================================= */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEggUse(PlayerInteractEvent event) {
+
+        if (event.getItem() == null)
+            return;
+
+        if (!event.getItem().getType().name().endsWith("_SPAWN_EGG"))
+            return;
+
+        Player player = event.getPlayer();
+        Location loc = player.getLocation();
+
+        // ❌ СПАВН
+        if (isInSpawnRegion(loc)) {
+            event.setCancelled(true);
+            player.sendMessage("§cНа спавне яйца запрещены.");
+            return;
+        }
+
+        // ❌ ЧУЖОЙ ПРИВАТ
+        if (!canBuildHere(player, loc)) {
+            event.setCancelled(true);
+            player.sendMessage("§cНельзя использовать яйца в чужом привате.");
+        }
+    }
+
+    /* =========================================================
+       2️⃣ СПАВН ИЗ ЯИЦ — ВСЕГДА ВАНИЛЛА
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggSpawn(CreatureSpawnEvent event) {
@@ -41,21 +69,9 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             return;
 
         Location loc = event.getLocation();
-        Player player = event.getEntity().getSpawner() instanceof Player
-                ? (Player) event.getEntity().getSpawner()
-                : null;
-
-        if (player != null) {
-            if (isInSpawnRegion(loc) || !canBuildHere(player, loc)) {
-                event.setCancelled(true);
-                return;
-            }
-        }
-
         Entity entity = event.getEntity();
         EntityType type = entity.getType();
 
-        // ❌ ВСЕГДА пересоздаём
         event.setCancelled(true);
 
         // SLIME → size 1
@@ -71,15 +87,15 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             return;
         }
 
-        // ВСЁ ОСТАЛЬНОЕ — обычный ванильный моб
+        // ВСЁ ОСТАЛЬНОЕ
         loc.getWorld().spawnEntity(loc, type);
     }
 
     /* =========================================================
-       2) ЗАПРЕТ ЯИЦ В СПАВНЕРАХ (НАВСЕГДА)
+       3️⃣ ЗАПРЕТ СПАВНЕРОВ
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onSpawnerUse(PlayerInteractEvent event) {
+    public void onSpawnerEgg(PlayerInteractEvent event) {
 
         if (event.getClickedBlock() == null)
             return;
@@ -91,7 +107,6 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (item == null || !item.getType().name().endsWith("_SPAWN_EGG"))
             return;
 
-        // ❌ ВСЕГДА
         event.setCancelled(true);
         event.getPlayer().sendMessage("§cИспользование яиц в спавнерах запрещено.");
     }
@@ -110,9 +125,8 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
 
         ApplicableRegionSet set = rm.getApplicableRegions(BukkitAdapter.asBlockVector(loc));
         for (ProtectedRegion r : set) {
-            if (r.getId().equalsIgnoreCase(SPAWN_REGION)) {
+            if (r.getId().equalsIgnoreCase(SPAWN_REGION))
                 return true;
-            }
         }
         return false;
     }
@@ -128,9 +142,8 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         ApplicableRegionSet set = rm.getApplicableRegions(BukkitAdapter.asBlockVector(loc));
         for (ProtectedRegion r : set) {
             if (!r.isOwner(WorldGuardPlugin.inst().wrapPlayer(player))
-                    && !r.isMember(WorldGuardPlugin.inst().wrapPlayer(player))) {
+                    && !r.isMember(WorldGuardPlugin.inst().wrapPlayer(player)))
                 return false;
-            }
         }
         return true;
     }
