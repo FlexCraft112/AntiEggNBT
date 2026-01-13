@@ -30,7 +30,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
                 .getPlatform().getRegionContainer();
         regionQuery = container.createQuery();
 
-        getLogger().info("AntiEggNBT enabled (WG zona protection)");
+        getLogger().info("AntiEggNBT enabled (WG zona fix)");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -40,19 +40,16 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             return;
 
         ItemStack item = event.getItem();
-        if (item == null)
+        if (item == null || !item.getType().name().endsWith("_SPAWN_EGG"))
             return;
 
-        if (!item.getType().name().endsWith("_SPAWN_EGG"))
+        Block block = event.getClickedBlock();
+        if (block == null)
             return;
 
-        Block clicked = event.getClickedBlock();
-        if (clicked == null)
-            return;
+        Location spawnLoc = block.getLocation().add(0.5, 1, 0.5);
 
-        Location spawnLoc = clicked.getLocation().add(0.5, 1, 0.5);
-
-        // 🔒 WORLDGUARD CHECK
+        // ✅ WORLDGUARD CHECK
         ApplicableRegionSet regions = regionQuery.getApplicableRegions(
                 BukkitAdapter.adapt(spawnLoc)
         );
@@ -61,21 +58,15 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
                 .anyMatch(r -> r.getId().equalsIgnoreCase("zona"))) {
 
             event.setCancelled(true);
-            event.getPlayer().sendMessage("§cСпавн мобов в этом регионе запрещён.");
+            event.getPlayer().sendMessage("§cСпавн мобов здесь запрещён.");
             return;
         }
 
         event.setCancelled(true); // ❗ всегда отменяем ваниль
 
         EntityType type = eggToEntity(item.getType());
-        if (type == null)
+        if (type == null || !type.isAlive())
             return;
-
-        // ❌ Блок не-живых сущностей
-        if (!type.isAlive()) {
-            getLogger().warning("Blocked non-living egg: " + type);
-            return;
-        }
 
         Entity entity = spawnLoc.getWorld().spawnEntity(spawnLoc, type);
 
