@@ -10,21 +10,17 @@
     <version>1.0</version>
     <packaging>jar</packaging>
 
-    <name>AntiEggNBT</name>
-
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <repositories>
-        <!-- Paper -->
         <repository>
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
 
-        <!-- WorldEdit / WorldGuard -->
         <repository>
             <id>enginehub</id>
             <url>https://maven.enginehub.org/repo/</url>
@@ -41,15 +37,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- WorldEdit (ОБЯЗАТЕЛЕН для WorldGuard) -->
-        <dependency>
-            <groupId>com.sk89q.worldedit</groupId>
-            <artifactId>worldedit-bukkit</artifactId>
-            <version>7.2.15</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- WorldGuard -->
+        <!-- WorldGuard ONLY -->
         <dependency>
             <groupId>com.sk89q.worldguard</groupId>
             <artifactId>worldguard-bukkit</artifactId>
@@ -61,7 +49,6 @@
 
     <build>
         <plugins>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -71,7 +58,6 @@
                     <target>17</target>
                 </configuration>
             </plugin>
-
         </plugins>
     </build>
 
