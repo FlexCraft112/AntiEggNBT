@@ -2,13 +2,10 @@ package me.antiegghnbt;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
@@ -16,69 +13,59 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (ABSOLUTE EGG OVERRIDE)");
+        getLogger().info("AntiEggNBT enabled (vanilla egg enforcement)");
     }
 
     @EventHandler
-    public void onEggUse(PlayerInteractEvent event) {
+    public void onCreatureSpawn(CreatureSpawnEvent event) {
 
-        if (event.getAction() != Action.RIGHT_CLICK_AIR &&
-            event.getAction() != Action.RIGHT_CLICK_BLOCK)
+        // ✅ СПАВНЕРЫ НЕ ТРОГАЕМ
+        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.SPAWNER)
             return;
 
-        ItemStack item = event.getItem();
-        if (item == null)
+        // работаем ТОЛЬКО с яйцами
+        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)
             return;
 
-        Material mat = item.getType();
-        if (!mat.name().endsWith("_SPAWN_EGG"))
-            return;
+        Entity entity = event.getEntity();
+        Location loc = entity.getLocation();
 
-        event.setCancelled(true); // ❌ УБИВАЕМ ВАНИЛЬНЫЙ СПАВН
-
-        EntityType type = getEntityTypeFromEgg(mat);
-        if (type == null)
-            return;
-
-        Location loc = event.getPlayer().getLocation()
-                .add(event.getPlayer().getLocation().getDirection());
-
-        // === SLIME / MAGMA ===
-        if (type == EntityType.SLIME || type == EntityType.MAGMA_CUBE) {
-            Slime slime = (Slime) loc.getWorld().spawnEntity(loc, type);
-            slime.setSize(1);
-            log("Forced vanilla slime");
+        /* ===== SLIME / MAGMA SLIME ===== */
+        if (entity instanceof Slime slime) {
+            if (slime.getSize() != 1) {
+                event.setCancelled(true);
+                Slime clean = (Slime) loc.getWorld().spawnEntity(loc, entity.getType());
+                clean.setSize(1);
+                log(entity, "Slime size reset");
+            }
             return;
         }
 
-        // === GIANT ===
-        if (type == EntityType.GIANT) {
+        /* ===== ЗАПРЕТ НЕ-ЖИВЫХ СУЩНОСТЕЙ ===== */
+        if (!entity.getType().isAlive()) {
+            event.setCancelled(true);
+            log(entity, "Illegal non-living entity blocked");
+            return;
+        }
+
+        /* ===== GIANT / EXPLOIT ===== */
+        if (entity.getType() == EntityType.GIANT) {
+            event.setCancelled(true);
             loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
-            log("Blocked giant, spawned zombie");
+            log(entity, "Giant replaced with Zombie");
             return;
         }
 
-        // === ВСЕ ОСТАЛЬНЫЕ ===
-        if (!type.isAlive()) {
-            log("Blocked non-living egg attempt: " + type);
-            return;
-        }
-
-        loc.getWorld().spawnEntity(loc, type);
-        log("Spawned clean vanilla: " + type);
+        /* ===== ЖЁСТКИЙ VANILLA RESET ===== */
+        // удаляем ВСЁ кастомное, пересоздаём обычного моба
+        event.setCancelled(true);
+        loc.getWorld().spawnEntity(loc, entity.getType());
+        log(entity, "NBT reset to vanilla");
     }
 
-    private EntityType getEntityTypeFromEgg(Material egg) {
-        try {
-            return EntityType.valueOf(
-                    egg.name().replace("_SPAWN_EGG", "")
-            );
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private void log(String msg) {
-        getLogger().warning(msg);
+    private void log(Entity e, String reason) {
+        getLogger().warning(
+                "[AntiEggNBT] " + reason + " | Entity: " + e.getType()
+        );
     }
 }
