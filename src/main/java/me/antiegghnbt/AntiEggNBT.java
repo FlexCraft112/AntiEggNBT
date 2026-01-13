@@ -1,11 +1,13 @@
 package me.antiegghnbt;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.entity.*;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
@@ -13,59 +15,44 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (vanilla egg enforcement)");
+        getLogger().info("AntiEggNBT enabled (FULL egg sanitization)");
     }
 
     @EventHandler
-    public void onCreatureSpawn(CreatureSpawnEvent event) {
+    public void onEggUse(PlayerInteractEvent event) {
+        if (!event.hasItem()) return;
 
-        // ✅ СПАВНЕРЫ НЕ ТРОГАЕМ
-        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.SPAWNER)
+        ItemStack item = event.getItem();
+        if (item == null) return;
+
+        // только яйца
+        if (!item.getType().name().endsWith("_SPAWN_EGG"))
             return;
 
-        // работаем ТОЛЬКО с яйцами
-        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)
-            return;
+        ItemMeta meta = item.getItemMeta();
 
-        Entity entity = event.getEntity();
-        Location loc = entity.getLocation();
+        // если есть ЛЮБОЙ NBT — сбрасываем
+        if (meta != null && (
+                meta.hasDisplayName()
+                || meta.hasLore()
+                || meta.hasCustomModelData()
+        )) {
 
-        /* ===== SLIME / MAGMA SLIME ===== */
-        if (entity instanceof Slime slime) {
-            if (slime.getSize() != 1) {
-                event.setCancelled(true);
-                Slime clean = (Slime) loc.getWorld().spawnEntity(loc, entity.getType());
-                clean.setSize(1);
-                log(entity, "Slime size reset");
-            }
-            return;
-        }
+            Player p = event.getPlayer();
+            Material cleanEgg = item.getType();
 
-        /* ===== ЗАПРЕТ НЕ-ЖИВЫХ СУЩНОСТЕЙ ===== */
-        if (!entity.getType().isAlive()) {
+            // отменяем использование
             event.setCancelled(true);
-            log(entity, "Illegal non-living entity blocked");
-            return;
+
+            // забираем грязное яйцо
+            item.setAmount(item.getAmount() - 1);
+
+            // выдаём чистое ванильное
+            ItemStack vanilla = new ItemStack(cleanEgg, 1);
+            p.getInventory().addItem(vanilla);
+
+            p.sendMessage("§cNBT в яйце удалён. Используй ванильное яйцо.");
+            getLogger().warning("Sanitized spawn egg from " + p.getName());
         }
-
-        /* ===== GIANT / EXPLOIT ===== */
-        if (entity.getType() == EntityType.GIANT) {
-            event.setCancelled(true);
-            loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
-            log(entity, "Giant replaced with Zombie");
-            return;
-        }
-
-        /* ===== ЖЁСТКИЙ VANILLA RESET ===== */
-        // удаляем ВСЁ кастомное, пересоздаём обычного моба
-        event.setCancelled(true);
-        loc.getWorld().spawnEntity(loc, entity.getType());
-        log(entity, "NBT reset to vanilla");
-    }
-
-    private void log(Entity e, String reason) {
-        getLogger().warning(
-                "[AntiEggNBT] " + reason + " | Entity: " + e.getType()
-        );
     }
 }
