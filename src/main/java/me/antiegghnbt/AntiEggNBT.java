@@ -1,12 +1,13 @@
 package me.antiegghnbt;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.MagmaCube;
-import org.bukkit.entity.Slime;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
@@ -14,33 +15,42 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled");
+        getLogger().info("AntiEggNBT enabled (spawn egg NBT reset)");
     }
 
     @EventHandler
     public void onCreatureSpawn(CreatureSpawnEvent event) {
 
-        // Нас интересуют ТОЛЬКО яйца
+        // Только спавн из яйца
         if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)
             return;
 
-        // SLIME
-        if (event.getEntityType() == EntityType.SLIME) {
-            Slime slime = (Slime) event.getEntity();
+        EntityType originalType = event.getEntityType();
 
-            if (slime.getSize() != 1) {
-                slime.setSize(1);
-            }
+        // Определяем материал яйца по типу моба
+        Material eggMaterial = Material.getMaterial(originalType.name() + "_SPAWN_EGG");
+        if (eggMaterial == null)
             return;
-        }
 
-        // MAGMA CUBE
-        if (event.getEntityType() == EntityType.MAGMA_CUBE) {
-            MagmaCube magma = (MagmaCube) event.getEntity();
+        // Если это проблемные мобы — всегда сбрасываем до ванили
+        if (originalType == EntityType.SLIME
+                || originalType == EntityType.MAGMA_CUBE
+                || originalType == EntityType.GIANT) {
 
-            if (magma.getSize() != 1) {
-                magma.setSize(1);
-            }
+            event.setCancelled(true);
+
+            Location loc = event.getLocation();
+
+            // Спавним ЧИСТОГО ванильного моба
+            EntityType spawnType = originalType == EntityType.GIANT
+                    ? EntityType.ZOMBIE
+                    : originalType;
+
+            loc.getWorld().spawnEntity(loc, spawnType);
+
+            getLogger().warning(
+                    "Reset NBT spawn egg: " + originalType.name()
+            );
         }
     }
 }
