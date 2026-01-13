@@ -8,8 +8,9 @@ import com.sk89q.worldguard.protection.regions.RegionQuery;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.block.Block;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Slime;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -30,7 +31,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
                 .getPlatform().getRegionContainer();
         regionQuery = container.createQuery();
 
-        getLogger().info("AntiEggNBT enabled (WG zona fix)");
+        getLogger().info("AntiEggNBT enabled");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -43,34 +44,40 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (item == null || !item.getType().name().endsWith("_SPAWN_EGG"))
             return;
 
-        Block block = event.getClickedBlock();
-        if (block == null)
+        if (event.getClickedBlock() == null)
             return;
 
-        Location spawnLoc = block.getLocation().add(0.5, 1, 0.5);
+        Location spawnLoc = event.getClickedBlock()
+                .getLocation().add(0.5, 1, 0.5);
 
-        // ✅ WORLDGUARD CHECK
+        // ❌ ЗАПРЕТ В РЕГИОНЕ zona
         ApplicableRegionSet regions = regionQuery.getApplicableRegions(
                 BukkitAdapter.adapt(spawnLoc)
         );
 
-        if (regions.getRegions().stream()
-                .anyMatch(r -> r.getId().equalsIgnoreCase("zona"))) {
+        boolean inZona = regions.getRegions().stream()
+                .anyMatch(r -> r.getId().equalsIgnoreCase("zona"));
 
+        if (inZona) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage("§cСпавн мобов здесь запрещён.");
+            event.getPlayer().sendMessage("§cЗдесь нельзя использовать яйца спавна.");
             return;
         }
 
-        event.setCancelled(true); // ❗ всегда отменяем ваниль
+        // ❗ ВСЕГДА отменяем ваниль (NBT режется тут)
+        event.setCancelled(true);
 
         EntityType type = eggToEntity(item.getType());
         if (type == null || !type.isAlive())
             return;
 
+        // ❌ БЛОК НЕ-МОБОВ (minecart, armorstand и т.п.)
+        if (!type.isSpawnable() || !type.isAlive())
+            return;
+
         Entity entity = spawnLoc.getWorld().spawnEntity(spawnLoc, type);
 
-        // SLIME / MAGMA → size 1
+        // SLIME / MAGMA → size = 1
         if (entity instanceof Slime slime) {
             slime.setSize(1);
         }
