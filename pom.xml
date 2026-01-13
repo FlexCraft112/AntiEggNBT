@@ -1,7 +1,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -20,7 +20,6 @@
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
-
         <repository>
             <id>enginehub</id>
             <url>https://maven.enginehub.org/repo/</url>
@@ -28,7 +27,6 @@
     </repositories>
 
     <dependencies>
-
         <!-- Paper API -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
@@ -37,14 +35,13 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- WorldGuard ONLY -->
+        <!-- WorldGuard -->
         <dependency>
             <groupId>com.sk89q.worldguard</groupId>
             <artifactId>worldguard-bukkit</artifactId>
             <version>7.0.9</version>
             <scope>provided</scope>
         </dependency>
-
     </dependencies>
 
     <build>
