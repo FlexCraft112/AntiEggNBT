@@ -1,13 +1,18 @@
 package me.antiegghnbt;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.WorldGuard;
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import org.bukkit.*;
-import org.bukkit.entity.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Slime;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -18,14 +23,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
+    private static final String SPAWN_REGION = "zona";
+
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (stable build)");
+        getLogger().info("AntiEggNBT ENABLED (hard NBT reset)");
     }
 
     /* =========================================================
-       ЯЙЦА → ТОЛЬКО ДЕФОЛТНЫЕ МОБЫ (NBT УБИВАЕМ)
+       1) СПАВН ИЗ ЯИЦ — ТОЛЬКО ВАНИЛЛА
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggSpawn(CreatureSpawnEvent event) {
@@ -33,15 +40,30 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SPAWNER_EGG)
             return;
 
-        Entity original = event.getEntity();
-        Location loc = original.getLocation();
-        EntityType type = original.getType();
+        Location loc = event.getLocation();
+        Player player = event.getEntity().getSpawner() instanceof Player
+                ? (Player) event.getEntity().getSpawner()
+                : null;
 
-        event.setCancelled(true); // 💥 УБИВАЕМ NBT
+        if (player != null) {
+            if (isInSpawnRegion(loc) || !canBuildHere(player, loc)) {
+                event.setCancelled(true);
+                return;
+            }
+        }
 
-        // ❌ НЕ-МОБЫ (вагонетки, стойки и т.д.)
-        if (!type.isAlive())
+        Entity entity = event.getEntity();
+        EntityType type = entity.getType();
+
+        // ❌ ВСЕГДА пересоздаём
+        event.setCancelled(true);
+
+        // SLIME → size 1
+        if (entity instanceof Slime) {
+            Slime s = (Slime) loc.getWorld().spawnEntity(loc, EntityType.SLIME);
+            s.setSize(1);
             return;
+        }
 
         // GIANT → ZOMBIE
         if (type == EntityType.GIANT) {
@@ -49,68 +71,67 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             return;
         }
 
-        // SLIME / MAGMA → size 1
-        if (original instanceof Slime) {
-            Slime s = (Slime) loc.getWorld().spawnEntity(loc, type);
-            s.setSize(1);
-            return;
-        }
-
-        // ✅ обычный моб
+        // ВСЁ ОСТАЛЬНОЕ — обычный ванильный моб
         loc.getWorld().spawnEntity(loc, type);
     }
 
     /* =========================================================
-       ЗАПРЕТ ИСПОЛЬЗОВАНИЯ ЯИЦ В РЕГИОНЕ "zona"
+       2) ЗАПРЕТ ЯИЦ В СПАВНЕРАХ (НАВСЕГДА)
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onEggUse(PlayerInteractEvent event) {
-
-        ItemStack item = event.getItem();
-        if (item == null)
-            return;
-
-        if (!item.getType().name().endsWith("_SPAWN_EGG"))
-            return;
+    public void onSpawnerUse(PlayerInteractEvent event) {
 
         if (event.getClickedBlock() == null)
             return;
 
-        Player player = event.getPlayer();
-        Location loc = event.getClickedBlock().getLocation();
+        if (event.getClickedBlock().getType() != Material.SPAWNER)
+            return;
 
-        if (isInZona(loc)) {
-            event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "❌ На спавне запрещено использовать яйца");
-        }
+        ItemStack item = event.getItem();
+        if (item == null || !item.getType().name().endsWith("_SPAWN_EGG"))
+            return;
+
+        // ❌ ВСЕГДА
+        event.setCancelled(true);
+        event.getPlayer().sendMessage("§cИспользование яиц в спавнерах запрещено.");
     }
 
     /* =========================================================
-       WORLDGUARD: только проверка региона "zona"
+       WorldGuard helpers
        ========================================================= */
-    private boolean isInZona(Location loc) {
 
+    private boolean isInSpawnRegion(Location loc) {
         RegionManager rm = WorldGuard.getInstance()
                 .getPlatform()
                 .getRegionContainer()
                 .get(BukkitAdapter.adapt(loc.getWorld()));
 
-        if (rm == null)
-            return false;
+        if (rm == null) return false;
 
-        BlockVector3 vec = BlockVector3.at(
-                loc.getBlockX(),
-                loc.getBlockY(),
-                loc.getBlockZ()
-        );
-
-        ApplicableRegionSet regions = rm.getApplicableRegions(vec);
-
-        for (ProtectedRegion r : regions) {
-            if (r.getId().equalsIgnoreCase("zona")) {
+        ApplicableRegionSet set = rm.getApplicableRegions(BukkitAdapter.asBlockVector(loc));
+        for (ProtectedRegion r : set) {
+            if (r.getId().equalsIgnoreCase(SPAWN_REGION)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean canBuildHere(Player player, Location loc) {
+        RegionManager rm = WorldGuard.getInstance()
+                .getPlatform()
+                .getRegionContainer()
+                .get(BukkitAdapter.adapt(loc.getWorld()));
+
+        if (rm == null) return true;
+
+        ApplicableRegionSet set = rm.getApplicableRegions(BukkitAdapter.asBlockVector(loc));
+        for (ProtectedRegion r : set) {
+            if (!r.isOwner(WorldGuardPlugin.inst().wrapPlayer(player))
+                    && !r.isMember(WorldGuardPlugin.inst().wrapPlayer(player))) {
+                return false;
+            }
+        }
+        return true;
     }
 }
