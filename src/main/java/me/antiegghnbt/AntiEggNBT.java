@@ -1,10 +1,8 @@
 package me.antiegghnbt;
 
-import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.bukkit.BukkitAdapter;
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.regions.RegionContainer;
-import com.sk89q.worldguard.protection.regions.RegionQuery;
+import com.sk89q.worldguard.protection.managers.RegionManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -17,83 +15,76 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
-    private RegionQuery regionQuery;
+    private WorldGuardPlugin wg;
 
     @Override
     public void onEnable() {
+        Plugin plugin = Bukkit.getPluginManager().getPlugin("WorldGuard");
+        if (plugin instanceof WorldGuardPlugin) {
+            wg = (WorldGuardPlugin) plugin;
+        } else {
+            getLogger().severe("WorldGuard not found!");
+            Bukkit.getPluginManager().disablePlugin(this);
+            return;
+        }
+
         Bukkit.getPluginManager().registerEvents(this, this);
-
-        RegionContainer container = WorldGuard.getInstance()
-                .getPlatform().getRegionContainer();
-        regionQuery = container.createQuery();
-
-        getLogger().info("AntiEggNBT enabled");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggUse(PlayerInteractEvent event) {
 
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
-            return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
 
         ItemStack item = event.getItem();
-        if (item == null || !item.getType().name().endsWith("_SPAWN_EGG"))
-            return;
+        if (item == null || !item.getType().name().endsWith("_SPAWN_EGG")) return;
 
-        if (event.getClickedBlock() == null)
-            return;
+        if (event.getClickedBlock() == null) return;
 
-        Location spawnLoc = event.getClickedBlock()
-                .getLocation().add(0.5, 1, 0.5);
+        Location loc = event.getClickedBlock().getLocation().add(0.5, 1, 0.5);
 
-        // ❌ ЗАПРЕТ В РЕГИОНЕ zona
-        ApplicableRegionSet regions = regionQuery.getApplicableRegions(
-                BukkitAdapter.adapt(spawnLoc)
-        );
-
-        boolean inZona = regions.getRegions().stream()
-                .anyMatch(r -> r.getId().equalsIgnoreCase("zona"));
-
-        if (inZona) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage("§cЗдесь нельзя использовать яйца спавна.");
-            return;
+        // ❌ REGION zona
+        RegionManager rm = wg.getRegionManager(loc.getWorld());
+        if (rm != null) {
+            ApplicableRegionSet set = rm.getApplicableRegions(loc);
+            if (set.getRegions().stream()
+                    .anyMatch(r -> r.getId().equalsIgnoreCase("zona"))) {
+                event.setCancelled(true);
+                return;
+            }
         }
 
-        // ❗ ВСЕГДА отменяем ваниль (NBT режется тут)
+        // ❌ отменяем ваниль полностью (NBT режется тут)
         event.setCancelled(true);
 
         EntityType type = eggToEntity(item.getType());
-        if (type == null || !type.isAlive())
-            return;
+        if (type == null) return;
 
-        // ❌ БЛОК НЕ-МОБОВ (minecart, armorstand и т.п.)
-        if (!type.isSpawnable() || !type.isAlive())
-            return;
+        // ❌ блок НЕ-мобов
+        if (!type.isAlive()) return;
 
-        Entity entity = spawnLoc.getWorld().spawnEntity(spawnLoc, type);
+        Entity entity = loc.getWorld().spawnEntity(loc, type);
 
-        // SLIME / MAGMA → size = 1
+        // Slime fix
         if (entity instanceof Slime slime) {
             slime.setSize(1);
         }
 
-        // GIANT → ZOMBIE
+        // Giant fix
         if (entity.getType() == EntityType.GIANT) {
             entity.remove();
-            spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.ZOMBIE);
+            loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
         }
     }
 
     private EntityType eggToEntity(Material egg) {
         try {
-            return EntityType.valueOf(
-                    egg.name().replace("_SPAWN_EGG", "")
-            );
+            return EntityType.valueOf(egg.name().replace("_SPAWN_EGG", ""));
         } catch (Exception e) {
             return null;
         }
