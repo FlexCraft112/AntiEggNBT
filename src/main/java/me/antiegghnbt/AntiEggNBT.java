@@ -6,6 +6,7 @@ import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldedit.math.BlockVector3;
 import org.bukkit.*;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
@@ -18,14 +19,17 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
+    private WorldGuardPlugin wg;
+
     @Override
     public void onEnable() {
+        wg = WorldGuardPlugin.inst();
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (Egg reset + WG protection)");
+        getLogger().info("AntiEggNBT enabled (stable WG build)");
     }
 
     /* =========================================================
-       ЯЙЦА → ВСЕГДА ДЕФОЛТНЫЙ МОБ (NBT УБИВАЕМ)
+       ЯЙЦА → ВСЕГДА ДЕФОЛТНЫЙ МОБ
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggSpawn(CreatureSpawnEvent event) {
@@ -35,11 +39,13 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
 
         Entity original = event.getEntity();
         Location loc = original.getLocation();
-
-        // ❌ убиваем оригинал с NBT
-        event.setCancelled(true);
-
         EntityType type = original.getType();
+
+        event.setCancelled(true); // 💥 убиваем NBT
+
+        // ❌ НЕ МОБЫ
+        if (!type.isAlive())
+            return;
 
         // GIANT → ZOMBIE
         if (type == EntityType.GIANT) {
@@ -54,25 +60,20 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             return;
         }
 
-        // ❌ НЕМOБЫ (вагонетки, стойки и т.д.)
-        if (!type.isAlive()) {
-            return;
-        }
-
-        // ✅ обычный моб, БЕЗ NBT
+        // ✅ обычный моб без NBT
         loc.getWorld().spawnEntity(loc, type);
     }
 
     /* =========================================================
-       ПРОВЕРКА РЕГИОНОВ WG ПЕРЕД ИСПОЛЬЗОВАНИЕМ ЯЙЦА
+       ЗАПРЕТ ИСПОЛЬЗОВАНИЯ ЯИЦ В РЕГИОНАХ
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggUse(PlayerInteractEvent event) {
 
-        if (event.getItem() == null)
+        ItemStack item = event.getItem();
+        if (item == null)
             return;
 
-        ItemStack item = event.getItem();
         if (!item.getType().name().endsWith("_SPAWN_EGG"))
             return;
 
@@ -82,16 +83,16 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         Location loc = event.getClickedBlock().getLocation();
 
-        if (!canUseEggHere(player, loc)) {
+        if (!canUseHere(player, loc)) {
             event.setCancelled(true);
-            player.sendMessage(ChatColor.RED + "❌ Здесь нельзя использовать яйца спавна");
+            player.sendMessage(ChatColor.RED + "❌ Здесь запрещено использовать яйца спавна");
         }
     }
 
     /* =========================================================
-       ЛОГИКА WORLDGUARD
+       WORLDGUARD ЛОГИКА
        ========================================================= */
-    private boolean canUseEggHere(Player player, Location loc) {
+    private boolean canUseHere(Player player, Location loc) {
 
         RegionManager rm = WorldGuard.getInstance()
                 .getPlatform()
@@ -101,19 +102,24 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (rm == null)
             return true;
 
-        ApplicableRegionSet regions = rm.getApplicableRegions(
-                BukkitAdapter.asBlockVector(loc));
+        BlockVector3 vec = BlockVector3.at(
+                loc.getBlockX(),
+                loc.getBlockY(),
+                loc.getBlockZ()
+        );
 
-        // ❌ зона спавна
-        for (ProtectedRegion region : regions) {
-            if (region.getId().equalsIgnoreCase("zona")) {
+        ApplicableRegionSet regions = rm.getApplicableRegions(vec);
+
+        // ❌ регион zona
+        for (ProtectedRegion r : regions) {
+            if (r.getId().equalsIgnoreCase("zona")) {
                 return player.hasPermission("antiegghnbt.bypass.zona");
             }
         }
 
         // ❌ чужие регионы
-        for (ProtectedRegion region : regions) {
-            if (!region.isOwner(WorldGuardPlugin.inst().wrapPlayer(player))) {
+        for (ProtectedRegion r : regions) {
+            if (!r.isOwner(wg.wrapPlayer(player))) {
                 return player.hasPermission("antiegghnbt.bypass.region");
             }
         }
