@@ -5,9 +5,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.CreatureSpawner;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Slime;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -22,11 +20,11 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT enabled (stable vanilla mode)");
+        getLogger().info("AntiEggNBT enabled (full vanilla enforcement)");
     }
 
     /* =========================================================
-       1️⃣ ЯЙЦА — ВСЕГДА ВАНИЛЬ
+       1️⃣ SPAWN EGGS → ТОЛЬКО ВАНИЛЬНЫЕ МОБЫ
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEggSpawn(CreatureSpawnEvent event) {
@@ -38,26 +36,28 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         Location loc = entity.getLocation();
         EntityType type = entity.getType();
 
-        // ❌ запрещённые типы через яйца
-        if (!type.isAlive() || type == EntityType.GIANT) {
+        // ❌ Giant → Zombie
+        if (type == EntityType.GIANT) {
             event.setCancelled(true);
             loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
             return;
         }
 
-        // SLIME / MAGMA → всегда size 1
+        // ❌ Slime / Magma → size 1
         if (entity instanceof Slime slime) {
-            if (slime.getSize() != 1) {
-                event.setCancelled(true);
-                Slime clean = (Slime) loc.getWorld().spawnEntity(loc, type);
-                clean.setSize(1);
-            }
+            event.setCancelled(true);
+            Slime clean = (Slime) loc.getWorld().spawnEntity(loc, type);
+            clean.setSize(1);
+            return;
         }
-        // остальные мобы — ваниль, NBT Bukkit сам не применяет
+
+        // 🔁 ВСЁ ОСТАЛЬНОЕ — пересоздаём БЕЗ NBT
+        event.setCancelled(true);
+        loc.getWorld().spawnEntity(loc, type);
     }
 
     /* =========================================================
-       2️⃣ СПАВНЕРЫ — ЧИСТЫЙ ТИП, БЕЗ NBT
+       2️⃣ SPawner — ЧИСТИМ ПРИ ВСТАВКЕ ЯЙЦА
        ========================================================= */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onSpawnerEggUse(PlayerInteractEvent event) {
@@ -69,19 +69,53 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (block == null || block.getType() != Material.SPAWNER)
             return;
 
-        ItemStack egg = event.getItem();
-        if (egg == null || !egg.getType().name().endsWith("_SPAWN_EGG"))
+        ItemStack item = event.getItem();
+        if (item == null || !item.getType().name().endsWith("_SPAWN_EGG"))
             return;
 
-        EntityType type = eggToEntity(egg.getType());
+        EntityType type = eggToEntity(item.getType());
         if (type == null || !type.isAlive())
             return;
 
         CreatureSpawner spawner = (CreatureSpawner) block.getState();
+
+        // ✅ ЖЁСТКО ставим ТОЛЬКО ТИП
         spawner.setSpawnedType(type);
         spawner.update(true);
 
         event.setCancelled(true);
+    }
+
+    /* =========================================================
+       3️⃣ НЕ-МОБЫ (minecart, armorstand и т.п.)
+       БЛОКИРУЕМ НА ИСПОЛЬЗОВАНИИ ПРЕДМЕТА
+       ========================================================= */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onIllegalItemUse(PlayerInteractEvent event) {
+
+        if (event.getAction() != Action.RIGHT_CLICK_AIR &&
+            event.getAction() != Action.RIGHT_CLICK_BLOCK)
+            return;
+
+        ItemStack item = event.getItem();
+        if (item == null)
+            return;
+
+        switch (item.getType()) {
+            case ARMOR_STAND:
+            case MINECART:
+            case CHEST_MINECART:
+            case FURNACE_MINECART:
+            case TNT_MINECART:
+            case HOPPER_MINECART:
+            case COMMAND_BLOCK_MINECART:
+                event.setCancelled(true);
+                item.setAmount(0); // 💥 сжигаем предмет
+                break;
+
+            default:
+                break;
+        }
     }
 
     /* ========================================================= */
