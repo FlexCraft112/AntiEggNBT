@@ -25,7 +25,6 @@
     </repositories>
 
     <dependencies>
-        <!-- Paper / Purpur -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -33,7 +32,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- WorldGuard -->
         <dependency>
             <groupId>com.sk89q.worldguard</groupId>
             <artifactId>worldguard-bukkit</artifactId>
@@ -55,5 +53,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>
