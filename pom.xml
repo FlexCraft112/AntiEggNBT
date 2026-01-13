@@ -24,7 +24,7 @@
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
 
-        <!-- WorldGuard / WorldEdit -->
+        <!-- WorldEdit / WorldGuard -->
         <repository>
             <id>enginehub</id>
             <url>https://maven.enginehub.org/repo/</url>
@@ -32,7 +32,8 @@
     </repositories>
 
     <dependencies>
-        <!-- Paper API (совместим с Purpur) -->
+
+        <!-- Paper API (совместим с Purpur 1.20.1) -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -40,13 +41,22 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- WorldGuard 7.0.9 (СТАБИЛЬНО ДЛЯ 1.20.1) -->
+        <!-- WorldEdit API (ОБЯЗАТЕЛЬНО для WorldGuard) -->
+        <dependency>
+            <groupId>com.sk89q.worldedit</groupId>
+            <artifactId>worldedit-bukkit</artifactId>
+            <version>7.3.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- WorldGuard -->
         <dependency>
             <groupId>com.sk89q.worldguard</groupId>
             <artifactId>worldguard-bukkit</artifactId>
             <version>7.0.9</version>
             <scope>provided</scope>
         </dependency>
+
     </dependencies>
 
     <build>
