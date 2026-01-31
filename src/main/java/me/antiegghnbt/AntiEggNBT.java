@@ -18,56 +18,53 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT включён — удаляет все NBT-яйца кроме тех, что в меню ChestCommands");
+        getLogger().info("AntiEggNBT включён — удаляет все NBT-яйца (кроме меню ChestCommands)");
     }
 
-    /**
-     * Проверка: яйцо с любым NBT (даже минимальным)
-     * Ты хотел удалять ВСЕ яйца с NBT → поэтому > 2 символов
-     */
+    /* ===============================
+       УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЯЙЦА
+       =============================== */
     private boolean isNBTSpawnEgg(ItemStack item) {
         if (item == null) return false;
         if (!item.getType().name().endsWith("_SPAWN_EGG")) return false;
         if (!item.hasItemMeta()) return false;
-        // Любое яйцо с NBT (даже минимальным) → удаляем
+        // Любое яйцо с NBT > 2 символов → считаем нелегальным (как в твоём оригинале)
         return item.getItemMeta().getAsString().length() > 2;
     }
 
-    /**
-     * Проверяем, открыто ли сейчас меню ChestCommands
-     * (по заголовку инвентаря)
-     */
+    /* ===============================
+       ПРОВЕРКА — ЭТО МЕНЮ CHESTCOMMANDS?
+       =============================== */
     private boolean isChestCommandsMenu(InventoryClickEvent event) {
         if (event.getView() == null) return false;
 
-        // Получаем заголовок как Component → конвертируем в строку с §
+        // Получаем заголовок как Component и конвертируем в legacy-строку (§ цвета)
         var titleComponent = event.getView().getTitle();
         String title = LegacyComponentSerializer.legacySection().serialize(titleComponent);
 
         // Приводим к нижнему регистру для поиска
         title = title.toLowerCase();
 
-        // Список условий — добавляй свои заголовки меню сюда
-        return 
-            title.contains("магазин") ||
-            title.contains("яйца") ||
-            title.contains("купить") ||
-            title.contains("монеты") ||
-            title.contains("shop") ||
-            title.contains("eggs") ||
-            title.contains("мобы") ||
-            title.contains("mob") ||
-            // Точные заголовки (если используешь цвета):
-            title.contains("§8магазин яиц") ||
-            title.contains("§6купить мобов") ||
-            title.contains("§eяйца за монеты") ||
-            title.contains("§cмагазин спавнеров");
+        // Добавь свои заголовки меню сюда (части слов или точные)
+        // Чем больше точных — тем лучше защита от ложных срабатываний
+        return title.contains("магазин") ||
+               title.contains("яйца") ||
+               title.contains("купить") ||
+               title.contains("монеты") ||
+               title.contains("shop") ||
+               title.contains("eggs") ||
+               title.contains("мобы") ||
+               title.contains("mob") ||
+               // Примеры с цветами (если используешь):
+               title.contains("§8магазин яиц") ||
+               title.contains("§6купить мобов") ||
+               title.contains("§eяйца за монеты") ||
+               title.contains("§cмагазин спавнеров");
     }
 
-    // ────────────────────────────────────────────────
-    //                СОБЫТИЯ
-    // ────────────────────────────────────────────────
-
+    /* ===============================
+       КЛИК ПКМ ПО МИРУ
+       =============================== */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onUseEgg(PlayerInteractEvent event) {
         ItemStack item = event.getItem();
@@ -78,6 +75,9 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         event.getPlayer().sendMessage("§cNBT-яйца запрещены");
     }
 
+    /* ===============================
+       КРЕАТИВ-ИНВЕНТАРЬ
+       =============================== */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onCreative(InventoryCreativeEvent event) {
         ItemStack item = event.getCursor();
@@ -87,27 +87,39 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         event.setCursor(null);
     }
 
+    /* ===============================
+       ПЕРЕТАСКИВАНИЕ / КЛИКИ В ИНВЕНТАРЯХ
+       =============================== */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        // Если это меню ChestCommands — НЕ трогаем ничего
+        // Если это меню магазина ChestCommands — полностью пропускаем
         if (isChestCommandsMenu(event)) {
             return;
         }
 
-        ItemStack item = event.getCurrentItem();
-        if (!isNBTSpawnEgg(item)) return;
+        boolean changed = false;
 
-        event.setCancelled(true);
-        event.setCurrentItem(null);
-
-        // Дополнительно удаляем из курсора, если там тоже яйцо
-        if (isNBTSpawnEgg(event.getCursor())) {
-            event.setCursor(null);
+        // Предмет в слоте
+        ItemStack current = event.getCurrentItem();
+        if (isNBTSpawnEgg(current)) {
+            event.setCurrentItem(null);
+            changed = true;
         }
 
-        Player player = (Player) event.getWhoClicked();
-        player.sendMessage("§cNBT-яйцо удалено из инвентаря");
+        // Курсор (если держит в руке)
+        ItemStack cursor = event.getCursor();
+        if (isNBTSpawnEgg(cursor)) {
+            event.setCursor(null);
+            changed = true;
+        }
+
+        if (changed) {
+            event.setCancelled(true);
+            Player player = (Player) event.getWhoClicked();
+            player.sendMessage("§cNBT-яйцо удалено из инвентаря");
+            player.updateInventory(); // на всякий случай
+        }
     }
 }
