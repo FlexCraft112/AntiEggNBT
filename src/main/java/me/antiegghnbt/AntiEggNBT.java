@@ -11,14 +11,24 @@ import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+
+import java.lang.reflect.Method;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
+
+    private Method getTitleMethod;
 
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
         getLogger().info("AntiEggNBT включён — удаляет все NBT-яйца (кроме меню ChestCommands)");
+
+        // Рефлексия для getTitle() — работает в 1.20.1
+        try {
+            getTitleMethod = Class.forName("org.bukkit.inventory.InventoryView").getMethod("getTitle");
+        } catch (Exception e) {
+            getLogger().severe("Не удалось получить метод getTitle через рефлексию: " + e.getMessage());
+        }
     }
 
     /* ===============================
@@ -28,7 +38,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (item == null) return false;
         if (!item.getType().name().endsWith("_SPAWN_EGG")) return false;
         if (!item.hasItemMeta()) return false;
-        // Как в твоём оригинале — любое яйцо с NBT > 2 символов удаляем
+        // Как в твоём оригинале — любое яйцо с NBT > 2 символов
         return item.getItemMeta().getAsString().length() > 2;
     }
 
@@ -36,32 +46,31 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
        ПРОВЕРКА — ЭТО МЕНЮ CHESTCOMMANDS?
        =============================== */
     private boolean isChestCommandsMenu(InventoryClickEvent event) {
-        if (event.getView() == null) return false;
+        if (getTitleMethod == null) return false; // если рефлексия не удалась — не рискуем
 
-        // Получаем заголовок как Component
-        var titleComponent = event.getView().getTitle();
+        try {
+            Object titleObj = getTitleMethod.invoke(event.getView());
+            if (titleObj instanceof String) {
+                String title = ((String) titleObj).toLowerCase();
 
-        // Конвертируем в простой текст (без форматирования) — это работает в 1.20.1
-        String title = PlainTextComponentSerializer.plainText().serialize(titleComponent);
-
-        // Приводим к нижнему регистру для поиска
-        title = title.toLowerCase();
-
-        // Добавь свои заголовки меню здесь (без цветов §, т.к. теперь plain текст)
-        // Используй contains для гибкости — добавляй свои слова/названия
-        return 
-            title.contains("магазин") ||
-            title.contains("яйца") ||
-            title.contains("купить") ||
-            title.contains("монеты") ||
-            title.contains("shop") ||
-            title.contains("eggs") ||
-            title.contains("мобы") ||
-            title.contains("mob") ||
-            title.contains("магазин яиц") ||
-            title.contains("купить мобов") ||
-            title.contains("яйца за монеты") ||
-            title.contains("магазин спавнеров");
+                // Добавь свои заголовки меню (можно без цветов, contains гибкий)
+                return title.contains("магазин") ||
+                       title.contains("яйца") ||
+                       title.contains("купить") ||
+                       title.contains("монеты") ||
+                       title.contains("shop") ||
+                       title.contains("eggs") ||
+                       title.contains("мобы") ||
+                       title.contains("mob") ||
+                       title.contains("магазин яиц") ||
+                       title.contains("купить мобов") ||
+                       title.contains("яйца за монеты") ||
+                       title.contains("магазин спавнеров");
+            }
+        } catch (Exception ignored) {
+            // Если рефлексия сломалась — считаем, что не магазин
+        }
+        return false;
     }
 
     /* ===============================
@@ -96,21 +105,19 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        // Если это меню ChestCommands — НЕ трогаем ничего
+        // Если это меню магазина — пропускаем
         if (isChestCommandsMenu(event)) {
             return;
         }
 
         boolean changed = false;
 
-        // Предмет в слоте
         ItemStack current = event.getCurrentItem();
         if (isNBTSpawnEgg(current)) {
             event.setCurrentItem(null);
             changed = true;
         }
 
-        // Курсор
         ItemStack cursor = event.getCursor();
         if (isNBTSpawnEgg(cursor)) {
             event.setCursor(null);
@@ -121,7 +128,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
             player.sendMessage("§cNBT-яйцо удалено из инвентаря");
-            player.updateInventory(); // на всякий случай
+            player.updateInventory();
         }
     }
 }
