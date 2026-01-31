@@ -9,103 +9,105 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT включён — блокировка NBT-яиц (кроме меню ChestCommands)");
+        getLogger().info("AntiEggNBT включён — удаляет все NBT-яйца кроме тех, что в меню ChestCommands");
     }
 
-    // Универсальная проверка на подозрительное NBT-яйцо
-    private boolean isIllegalNBTSpawnEgg(ItemStack item) {
-        if (item == null || item.getType() == Material.AIR) return false;
-        String typeName = item.getType().name();
-        if (!typeName.endsWith("_SPAWN_EGG")) return false;
+    /**
+     * Проверка: яйцо с любым NBT (даже минимальным)
+     * Ты хотел удалять ВСЕ яйца с NBT → поэтому > 2 символов
+     */
+    private boolean isNBTSpawnEgg(ItemStack item) {
+        if (item == null) return false;
+        if (!item.getType().name().endsWith("_SPAWN_EGG")) return false;
         if (!item.hasItemMeta()) return false;
-
-        // Ванильные яйца имеют короткий NBT (~20–70 символов)
-        // Если сильно больше — это модифицированное/читерское
-        String metaStr = item.getItemMeta().getAsString();
-        return metaStr.length() > 80;  // ← можно поднять до 100–120, если ложные срабатывания
+        // Любое яйцо с NBT (даже минимальным) → удаляем
+        return item.getItemMeta().getAsString().length() > 2;
     }
 
-    // Проверка — это меню магазина ChestCommands?
-    private boolean isChestCommandsShopMenu(Inventory inv) {
-        if (inv == null) return false;
-        String title = inv.getTitle();  // или inv.getName() в старых версиях
-        if (title == null) return false;
+    /**
+     * Проверяем, открыто ли сейчас меню ChestCommands
+     * (по заголовку инвентаря)
+     */
+    private boolean isChestCommandsMenu(InventoryClickEvent event) {
+        if (event.getView() == null) return false;
 
+        // Получаем заголовок как Component → конвертируем в строку с §
+        var titleComponent = event.getView().getTitle();
+        String title = LegacyComponentSerializer.legacySection().serialize(titleComponent);
+
+        // Приводим к нижнему регистру для поиска
         title = title.toLowerCase();
 
-        // Добавь сюда ВСЕ возможные заголовки твоих магазинов яиц
-        // Можно использовать contains() для гибкости
-        return title.contains("магазин") ||
-               title.contains("яйца") ||
-               title.contains("купить") ||
-               title.contains("магаз") ||
-               title.contains("shop") ||
-               title.contains("eggs") ||
-               title.contains("мобы") ||
-               title.contains("mob") ||
-               // Добавь точные названия своих меню, например:
-               title.equals("§8§lМагазин Яиц") ||
-               title.equals("§6Купить Мобов");
+        // Список условий — добавляй свои заголовки меню сюда
+        return 
+            title.contains("магазин") ||
+            title.contains("яйца") ||
+            title.contains("купить") ||
+            title.contains("монеты") ||
+            title.contains("shop") ||
+            title.contains("eggs") ||
+            title.contains("мобы") ||
+            title.contains("mob") ||
+            // Точные заголовки (если используешь цвета):
+            title.contains("§8магазин яиц") ||
+            title.contains("§6купить мобов") ||
+            title.contains("§eяйца за монеты") ||
+            title.contains("§cмагазин спавнеров");
     }
 
     // ────────────────────────────────────────────────
     //                СОБЫТИЯ
     // ────────────────────────────────────────────────
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onUseEgg(PlayerInteractEvent event) {
         ItemStack item = event.getItem();
-        if (!isIllegalNBTSpawnEgg(item)) return;
+        if (!isNBTSpawnEgg(item)) return;
 
         event.setCancelled(true);
         event.getPlayer().getInventory().remove(item);
-        event.getPlayer().sendMessage("§cЗапрещено использовать NBT-яйца!");
+        event.getPlayer().sendMessage("§cNBT-яйца запрещены");
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onCreative(InventoryCreativeEvent event) {
         ItemStack item = event.getCursor();
-        if (!isIllegalNBTSpawnEgg(item)) return;
+        if (!isNBTSpawnEgg(item)) return;
 
         event.setCancelled(true);
         event.setCursor(null);
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
-        Player player = (Player) event.getWhoClicked();
-        Inventory inv = event.getClickedInventory();
 
-        // Если это меню ChestCommands — НЕ трогаем яйца!
-        if (isChestCommandsShopMenu(inv)) {
-            return;  // ← главное изменение: пропускаем магазин
-        }
-
-        // Проверяем курсор (предмет, который держит игрок)
-        ItemStack cursor = event.getCursor();
-        if (isIllegalNBTSpawnEgg(cursor)) {
-            event.setCursor(null);
-            event.setCancelled(true);
-            player.sendMessage("§cЗапрещённый NBT-яйцо удалён!");
+        // Если это меню ChestCommands — НЕ трогаем ничего
+        if (isChestCommandsMenu(event)) {
             return;
         }
 
-        // Проверяем предмет в слоте
-        ItemStack current = event.getCurrentItem();
-        if (isIllegalNBTSpawnEgg(current)) {
-            event.setCurrentItem(null);
-            event.setCancelled(true);
-            player.sendMessage("§cЗапрещённый NBT-яйцо удалён!");
+        ItemStack item = event.getCurrentItem();
+        if (!isNBTSpawnEgg(item)) return;
+
+        event.setCancelled(true);
+        event.setCurrentItem(null);
+
+        // Дополнительно удаляем из курсора, если там тоже яйцо
+        if (isNBTSpawnEgg(event.getCursor())) {
+            event.setCursor(null);
         }
+
+        Player player = (Player) event.getWhoClicked();
+        player.sendMessage("§cNBT-яйцо удалено из инвентаря");
     }
 }
