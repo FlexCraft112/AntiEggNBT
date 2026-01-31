@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,7 +20,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     }
 
     /* ===============================
-       ПРОВЕРКА — ЯЙЦО С NBT
+       УНИВЕРСАЛЬНАЯ ПРОВЕРКА ЯЙЦА
        =============================== */
     private boolean isNBTSpawnEgg(ItemStack item) {
         if (item == null) return false;
@@ -30,22 +31,45 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     }
 
     /* ===============================
-       ОСНОВНАЯ ЛОГИКА — ТОЛЬКО ПРИ СПАВНЕ
+       ОСНОВНАЯ ЛОГИКА — ПРАВАЯ И ЛЕВАЯ РУКА
        =============================== */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onUseEgg(PlayerInteractEvent event) {
-        // Отменяем только если это действие спавна (ПКМ по блоку или воздуху)
-        if (!event.getAction().toString().contains("RIGHT_CLICK")) return;
+        Player player = event.getPlayer();
 
-        ItemStack item = event.getItem();
-        if (item == null) return;
-        if (!isNBTSpawnEgg(item)) return;
+        ItemStack mainHand = event.getItem();               // правая рука
+        ItemStack offHand = player.getInventory().getItemInOffHand();  // левая рука
 
-        // Блокируем спавн + мгновенно удаляем яйцо
-        event.setCancelled(true);
-        event.getPlayer().getInventory().remove(item);
-        event.getPlayer().updateInventory(); // синхронизация
+        boolean removed = false;
 
-        event.getPlayer().sendMessage("§cЗапрещено спавнить мобов из NBT-яиц! Яйцо удалено.");
+        // Правая рука (основная логика спавна)
+        if (mainHand != null && isNBTSpawnEgg(mainHand)) {
+            // Любое ПКМ (блок или воздух) → блокируем и удаляем
+            if (event.getAction() == Action.RIGHT_CLICK_BLOCK || 
+                event.getAction() == Action.RIGHT_CLICK_AIR) {
+                
+                event.setCancelled(true);
+                player.getInventory().remove(mainHand);
+                player.updateInventory();
+                removed = true;
+            }
+        }
+
+        // Левая рука (offhand) — удаляем при любой попытке взаимодействия правой рукой
+        if (offHand != null && isNBTSpawnEgg(offHand)) {
+            // Если игрок делает ПКМ правой рукой — чистим offhand
+            if (event.getAction() == Action.RIGHT_CLICK_BLOCK || 
+                event.getAction() == Action.RIGHT_CLICK_AIR) {
+                
+                player.getInventory().setItemInOffHand(null);
+                player.updateInventory();
+                removed = true;
+            }
+        }
+
+        // Общее сообщение, если удалили что-то
+        if (removed) {
+            player.sendMessage("§cNBT-яйцо удалено из инвентаря (запрещено спавнить)");
+        }
     }
 }
