@@ -28,7 +28,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (item == null) return false;
         if (!item.getType().name().endsWith("_SPAWN_EGG")) return false;
         if (!item.hasItemMeta()) return false;
-        // Как в твоём оригинале — любое яйцо с NBT > 2 символов
+        // Как в твоём оригинале — любое яйцо с NBT > 2 символов удаляем
         return item.getItemMeta().getAsString().length() > 2;
     }
 
@@ -41,26 +41,27 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         // Получаем заголовок как Component
         var titleComponent = event.getView().getTitle();
 
-        // Конвертируем в plain текст (без § цветов) — это безопасно и работает в 1.20.1
+        // Конвертируем в простой текст (без форматирования) — это работает в 1.20.1
         String title = PlainTextComponentSerializer.plainText().serialize(titleComponent);
 
-        // Приводим к нижнему регистру
+        // Приводим к нижнему регистру для поиска
         title = title.toLowerCase();
 
-        // Добавь свои заголовки меню (без цветов, т.к. теперь plain)
-        // Можно использовать contains для гибкости
-        return title.contains("магазин") ||
-               title.contains("яйца") ||
-               title.contains("купить") ||
-               title.contains("монеты") ||
-               title.contains("shop") ||
-               title.contains("eggs") ||
-               title.contains("мобы") ||
-               title.contains("mob") ||
-               title.contains("магазин яиц") ||
-               title.contains("купить мобов") ||
-               title.contains("яйца за монеты") ||
-               title.contains("магазин спавнеров");
+        // Добавь свои заголовки меню здесь (без цветов §, т.к. теперь plain текст)
+        // Используй contains для гибкости — добавляй свои слова/названия
+        return 
+            title.contains("магазин") ||
+            title.contains("яйца") ||
+            title.contains("купить") ||
+            title.contains("монеты") ||
+            title.contains("shop") ||
+            title.contains("eggs") ||
+            title.contains("мобы") ||
+            title.contains("mob") ||
+            title.contains("магазин яиц") ||
+            title.contains("купить мобов") ||
+            title.contains("яйца за монеты") ||
+            title.contains("магазин спавнеров");
     }
 
     /* ===============================
@@ -95,7 +96,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        // Если это меню магазина — пропускаем проверку
+        // Если это меню ChestCommands — НЕ трогаем ничего
         if (isChestCommandsMenu(event)) {
             return;
         }
@@ -120,7 +121,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
             player.sendMessage("§cNBT-яйцо удалено из инвентаря");
-            player.updateInventory();
+            player.updateInventory(); // на всякий случай
         }
     }
 }
