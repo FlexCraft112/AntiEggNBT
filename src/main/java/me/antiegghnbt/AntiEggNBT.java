@@ -9,157 +9,103 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
-
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
-    private final Set<UUID> notified = new HashSet<>();
-
     @Override
     public void onEnable() {
-        getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("AntiEggNBT включен — NBT-яйца полностью блокируются и удаляются");
-
-        // Периодическая проверка инвентарей всех игроков
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    checkAndRemoveIllegalEggs(player, false);
-                }
-            }
-        }.runTaskTimer(this, 20L, 20L); // каждую секунду
+        Bukkit.getPluginManager().registerEvents(this, this);
+        getLogger().info("AntiEggNBT включён — блокировка NBT-яиц (кроме меню ChestCommands)");
     }
 
-    /**
-     * Самая надёжная проверка: яйцо с NBT длиннее, чем у ванильного
-     */
+    // Универсальная проверка на подозрительное NBT-яйцо
     private boolean isIllegalNBTSpawnEgg(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) return false;
         String typeName = item.getType().name();
         if (!typeName.endsWith("_SPAWN_EGG")) return false;
-
-        // Ванильное яйцо почти всегда имеет очень короткий NBT
         if (!item.hasItemMeta()) return false;
 
-        String metaString = item.getItemMeta().getAsString();
-        // Ванильные яйца обычно имеют длину NBT ~20–60 символов
-        // Если сильно больше — почти 100% модифицированное
-        return metaString.length() > 80;
+        // Ванильные яйца имеют короткий NBT (~20–70 символов)
+        // Если сильно больше — это модифицированное/читерское
+        String metaStr = item.getItemMeta().getAsString();
+        return metaStr.length() > 80;  // ← можно поднять до 100–120, если ложные срабатывания
     }
 
-    /**
-     * Проверяет и удаляет нелегальные яйца из всего инвентаря игрока
-     * @param player игрок
-     * @param notify отправлять сообщение или нет
-     * @return true — если было удалено хоть одно яйцо
-     */
-    private boolean checkAndRemoveIllegalEggs(Player player, boolean notify) {
-        if (player == null || !player.isOnline()) return false;
+    // Проверка — это меню магазина ChestCommands?
+    private boolean isChestCommandsShopMenu(Inventory inv) {
+        if (inv == null) return false;
+        String title = inv.getTitle();  // или inv.getName() в старых версиях
+        if (title == null) return false;
 
-        PlayerInventory inv = player.getInventory();
-        boolean removed = false;
+        title = title.toLowerCase();
 
-        // Проверяем весь инвентарь + экипировку + offhand
-        ItemStack[] contents = inv.getContents();
-        for (int i = 0; i < contents.length; i++) {
-            ItemStack item = contents[i];
-            if (isIllegalNBTSpawnEgg(item)) {
-                inv.setItem(i, null);
-                removed = true;
-            }
-        }
-
-        // Шлем, нагрудник, поножи, ботинки
-        ItemStack[] armor = inv.getArmorContents();
-        for (int i = 0; i < armor.length; i++) {
-            if (isIllegalNBTSpawnEgg(armor[i])) {
-                armor[i] = null;
-                removed = true;
-            }
-        }
-        inv.setArmorContents(armor);
-
-        // Offhand
-        if (isIllegalNBTSpawnEgg(inv.getItemInOffHand())) {
-            inv.setItemInOffHand(null);
-            removed = true;
-        }
-
-        if (removed && notify && !notified.contains(player.getUniqueId())) {
-            player.sendMessage("§cОбнаружены запрещённые NBT-яйца — они были удалены из вашего инвентаря.");
-            notified.add(player.getUniqueId());
-            getLogger().warning("[AntiEggNBT] У игрока " + player.getName() + " удалены нелегальные NBT-яйца");
-        }
-
-        return removed;
+        // Добавь сюда ВСЕ возможные заголовки твоих магазинов яиц
+        // Можно использовать contains() для гибкости
+        return title.contains("магазин") ||
+               title.contains("яйца") ||
+               title.contains("купить") ||
+               title.contains("магаз") ||
+               title.contains("shop") ||
+               title.contains("eggs") ||
+               title.contains("мобы") ||
+               title.contains("mob") ||
+               // Добавь точные названия своих меню, например:
+               title.equals("§8§lМагазин Яиц") ||
+               title.equals("§6Купить Мобов");
     }
 
     // ────────────────────────────────────────────────
     //                СОБЫТИЯ
     // ────────────────────────────────────────────────
 
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onPlayerJoin(PlayerJoinEvent e) {
-        // Проверяем сразу при входе
-        Bukkit.getScheduler().runTaskLater(this, () -> 
-            checkAndRemoveIllegalEggs(e.getPlayer(), true), 20L);
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onUseEgg(PlayerInteractEvent event) {
+        ItemStack item = event.getItem();
+        if (!isIllegalNBTSpawnEgg(item)) return;
+
+        event.setCancelled(true);
+        event.getPlayer().getInventory().remove(item);
+        event.getPlayer().sendMessage("§cЗапрещено использовать NBT-яйца!");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onPlayerInteract(PlayerInteractEvent e) {
-        if (!e.hasItem()) return;
-        if (isIllegalNBTSpawnEgg(e.getItem())) {
-            e.setCancelled(true);
-            e.getPlayer().getInventory().remove(e.getItem());
-            e.getPlayer().updateInventory();
-            checkAndRemoveIllegalEggs(e.getPlayer(), true);
-        }
+    public void onCreative(InventoryCreativeEvent event) {
+        ItemStack item = event.getCursor();
+        if (!isIllegalNBTSpawnEgg(item)) return;
+
+        event.setCancelled(true);
+        event.setCursor(null);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onInventoryClick(InventoryClickEvent e) {
-        if (!(e.getWhoClicked() instanceof Player)) return;
-        Player p = (Player) e.getWhoClicked();
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
+        Inventory inv = event.getClickedInventory();
 
-        boolean changed = false;
-
-        // Проверяем курсор
-        if (isIllegalNBTSpawnEgg(e.getCursor())) {
-            e.setCursor(null);
-            changed = true;
+        // Если это меню ChestCommands — НЕ трогаем яйца!
+        if (isChestCommandsShopMenu(inv)) {
+            return;  // ← главное изменение: пропускаем магазин
         }
 
-        // Проверяем текущий предмет
-        if (isIllegalNBTSpawnEgg(e.getCurrentItem())) {
-            e.setCurrentItem(null);
-            changed = true;
+        // Проверяем курсор (предмет, который держит игрок)
+        ItemStack cursor = event.getCursor();
+        if (isIllegalNBTSpawnEgg(cursor)) {
+            event.setCursor(null);
+            event.setCancelled(true);
+            player.sendMessage("§cЗапрещённый NBT-яйцо удалён!");
+            return;
         }
 
-        if (changed) {
-            e.setCancelled(true);
-            checkAndRemoveIllegalEggs(p, true);
-            p.updateInventory();
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onCreativeInventory(InventoryCreativeEvent e) {
-        if (!(e.getWhoClicked() instanceof Player)) return;
-        Player p = (Player) e.getWhoClicked();
-
-        if (isIllegalNBTSpawnEgg(e.getCursor())) {
-            e.setCursor(null);
-            e.setCancelled(true);
-            checkAndRemoveIllegalEggs(p, true);
+        // Проверяем предмет в слоте
+        ItemStack current = event.getCurrentItem();
+        if (isIllegalNBTSpawnEgg(current)) {
+            event.setCurrentItem(null);
+            event.setCancelled(true);
+            player.sendMessage("§cЗапрещённый NBT-яйцо удалён!");
         }
     }
 }
