@@ -38,28 +38,29 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     private boolean isChestCommandsMenu(InventoryClickEvent event) {
         if (event.getView() == null) return false;
 
-        // Получаем заголовок как Component и конвертируем в legacy-строку (§ цвета)
+        // Получаем заголовок как Component → конвертируем в legacy-строку (§ цвета)
         var titleComponent = event.getView().getTitle();
         String title = LegacyComponentSerializer.legacySection().serialize(titleComponent);
 
         // Приводим к нижнему регистру для поиска
         title = title.toLowerCase();
 
-        // Добавь свои заголовки меню сюда (части слов или точные)
-        // Чем больше точных — тем лучше защита от ложных срабатываний
-        return title.contains("магазин") ||
-               title.contains("яйца") ||
-               title.contains("купить") ||
-               title.contains("монеты") ||
-               title.contains("shop") ||
-               title.contains("eggs") ||
-               title.contains("мобы") ||
-               title.contains("mob") ||
-               // Примеры с цветами (если используешь):
-               title.contains("§8магазин яиц") ||
-               title.contains("§6купить мобов") ||
-               title.contains("§eяйца за монеты") ||
-               title.contains("§cмагазин спавнеров");
+        // Добавь свои заголовки меню сюда (части слов или точные строки)
+        // Чем точнее совпадение — тем лучше
+        return 
+            title.contains("магазин") ||
+            title.contains("яйца") ||
+            title.contains("купить") ||
+            title.contains("монеты") ||
+            title.contains("shop") ||
+            title.contains("eggs") ||
+            title.contains("мобы") ||
+            title.contains("mob") ||
+            // Примеры с цветами (если используешь § в заголовках):
+            title.contains("§8магазин яиц") ||
+            title.contains("§6купить мобов") ||
+            title.contains("§eяйца за монеты") ||
+            title.contains("§cмагазин спавнеров");
     }
 
     /* ===============================
@@ -94,7 +95,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        // Если это меню магазина ChestCommands — полностью пропускаем
+        // Если это меню магазина ChestCommands — НЕ трогаем ничего
         if (isChestCommandsMenu(event)) {
             return;
         }
@@ -119,7 +120,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
             player.sendMessage("§cNBT-яйцо удалено из инвентаря");
-            player.updateInventory(); // на всякий случай
+            player.updateInventory(); // на всякий случай (в новых версиях почти не нужно)
         }
     }
 }
