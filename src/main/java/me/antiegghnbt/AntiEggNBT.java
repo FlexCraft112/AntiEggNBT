@@ -11,7 +11,7 @@ import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class AntiEggNBT extends JavaPlugin implements Listener {
 
@@ -28,7 +28,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
         if (item == null) return false;
         if (!item.getType().name().endsWith("_SPAWN_EGG")) return false;
         if (!item.hasItemMeta()) return false;
-        // Любое яйцо с NBT > 2 символов → считаем нелегальным (как в твоём оригинале)
+        // Как в твоём оригинале — любое яйцо с NBT > 2 символов
         return item.getItemMeta().getAsString().length() > 2;
     }
 
@@ -38,29 +38,29 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     private boolean isChestCommandsMenu(InventoryClickEvent event) {
         if (event.getView() == null) return false;
 
-        // Получаем заголовок как Component → конвертируем в legacy-строку (§ цвета)
+        // Получаем заголовок как Component
         var titleComponent = event.getView().getTitle();
-        String title = LegacyComponentSerializer.legacySection().serialize(titleComponent);
 
-        // Приводим к нижнему регистру для поиска
+        // Конвертируем в plain текст (без § цветов) — это безопасно и работает в 1.20.1
+        String title = PlainTextComponentSerializer.plainText().serialize(titleComponent);
+
+        // Приводим к нижнему регистру
         title = title.toLowerCase();
 
-        // Добавь свои заголовки меню сюда (части слов или точные строки)
-        // Чем точнее совпадение — тем лучше
-        return 
-            title.contains("магазин") ||
-            title.contains("яйца") ||
-            title.contains("купить") ||
-            title.contains("монеты") ||
-            title.contains("shop") ||
-            title.contains("eggs") ||
-            title.contains("мобы") ||
-            title.contains("mob") ||
-            // Примеры с цветами (если используешь § в заголовках):
-            title.contains("§8магазин яиц") ||
-            title.contains("§6купить мобов") ||
-            title.contains("§eяйца за монеты") ||
-            title.contains("§cмагазин спавнеров");
+        // Добавь свои заголовки меню (без цветов, т.к. теперь plain)
+        // Можно использовать contains для гибкости
+        return title.contains("магазин") ||
+               title.contains("яйца") ||
+               title.contains("купить") ||
+               title.contains("монеты") ||
+               title.contains("shop") ||
+               title.contains("eggs") ||
+               title.contains("мобы") ||
+               title.contains("mob") ||
+               title.contains("магазин яиц") ||
+               title.contains("купить мобов") ||
+               title.contains("яйца за монеты") ||
+               title.contains("магазин спавнеров");
     }
 
     /* ===============================
@@ -95,7 +95,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        // Если это меню магазина ChestCommands — НЕ трогаем ничего
+        // Если это меню магазина — пропускаем проверку
         if (isChestCommandsMenu(event)) {
             return;
         }
@@ -109,7 +109,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             changed = true;
         }
 
-        // Курсор (если держит в руке)
+        // Курсор
         ItemStack cursor = event.getCursor();
         if (isNBTSpawnEgg(cursor)) {
             event.setCursor(null);
@@ -120,7 +120,7 @@ public class AntiEggNBT extends JavaPlugin implements Listener {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
             player.sendMessage("§cNBT-яйцо удалено из инвентаря");
-            player.updateInventory(); // на всякий случай (в новых версиях почти не нужно)
+            player.updateInventory();
         }
     }
 }
